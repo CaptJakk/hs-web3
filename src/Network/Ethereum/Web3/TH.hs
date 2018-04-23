@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE QuasiQuotes      #-}
 {-# LANGUAGE TemplateHaskell  #-}
+{-# LANGUAGE OverloadedStrings  #-}
 -- |
 -- Module      :  Network.Ethereum.Web3.TH
 -- Copyright   :  Alexander Krupenkin 2016
@@ -65,8 +66,9 @@ import           Network.Ethereum.Web3.Provider
 import           Network.Ethereum.Web3.Types
 
 import           Control.Monad                          (replicateM)
-
+import           Control.Lens                           ((^?))
 import           Data.Aeson
+import           Data.Aeson.Lens                        (key, _JSON)
 import           Data.ByteArray                         (Bytes)
 import           Data.List                              (groupBy, sortBy)
 import           Data.Monoid                            (mconcat, (<>))
@@ -292,7 +294,7 @@ mkDecl _             = return []
 -- | ABI to declarations converter
 quoteAbiDec :: String -> Q [Dec]
 quoteAbiDec abi_string =
-    case decode abi_lbs of
+    case abi_lbs ^? key "abi" . _JSON of
         Just (ContractABI abi) -> concat <$> mapM mkDecl (escape abi)
         _                      -> fail "Unable to parse ABI!"
   where abi_lbs = LT.encodeUtf8 (LT.pack abi_string)
@@ -300,7 +302,7 @@ quoteAbiDec abi_string =
 -- | ABI information string
 quoteAbiExp :: String -> ExpQ
 quoteAbiExp abi_string = stringE $
-    case eitherDecode abi_lbs of
-        Left e    -> "Error: " ++ show e
-        Right abi -> show (abi :: ContractABI)
+    case abi_lbs ^? key "abi" . _JSON of
+        Nothing   -> error "couldn't parse as ABI"
+        Just abi -> show (abi :: ContractABI)
   where abi_lbs = LT.encodeUtf8 (LT.pack abi_string)

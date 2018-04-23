@@ -57,6 +57,7 @@ library
                      , Network.Ethereum.Web3.Encoding.Event.Internal
   build-depends:       base >4.8 && <4.11
                      , aeson
+                     , lens-aeson
                      , async
                      , base16-bytestring
                      , bytestring
@@ -68,6 +69,7 @@ library
                      , machines
                      , mtl
                      , errors
+                     , lens
                      , memory
                      , parsec
                      , singletons
