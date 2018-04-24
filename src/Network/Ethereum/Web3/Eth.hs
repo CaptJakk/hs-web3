@@ -27,6 +27,11 @@ syncing :: Web3 SyncingState
 {-# INLINE syncing #-}
 syncing = remote "eth_syncing"
 
+-- | Get the network id that the node is listening to.
+net_version :: Web3 Integer
+net_version = remote "net_version"
+
+
 -- | Returns the client coinbase address.
 coinbase :: Web3 Address
 {-# INLINE coinbase #-}
