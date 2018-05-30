@@ -59,6 +59,7 @@ library
                      , Network.Ethereum.ABI.Prim.Tagged
                      , Network.Ethereum.ABI.Prim.Address
                      , Network.Ethereum.Contract.TH
+                     , Network.Ethereum.Contract.HKD
                      , Network.Ethereum.Contract.Event
                      , Network.Ethereum.Contract.Method
                      , Network.JsonRpc.TinyClient
@@ -129,9 +130,9 @@ test-suite live
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
   main-is:             Spec.hs
-  other-modules:       Network.Ethereum.Web3.Test.ComplexStorageSpec
-                     , Network.Ethereum.Web3.Test.SimpleStorageSpec
+  other-modules:       Network.Ethereum.Web3.Test.SimpleStorageSpec
                      , Network.Ethereum.Web3.Test.Utils
+                     , Network.Ethereum.Web3.Test.ComplexStorageSpec
   build-depends:       base                 >4.9       && <4.12
                      , hspec-expectations   >=0.8.2    && <0.9
                      , hspec-discover       >=2.4.8    && <2.6

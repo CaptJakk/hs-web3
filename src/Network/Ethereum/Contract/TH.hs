@@ -35,7 +35,7 @@
 -- Full code example available in examples folder.
 --
 
-module Network.Ethereum.Contract.TH (abi, abiFrom) where
+module Network.Ethereum.Contract.TH (abi, abiFrom, HKD) where
 
 import           Control.Applicative               ((<|>))
 import           Control.Lens                      ((^?))
@@ -77,6 +77,7 @@ import           Network.Ethereum.Contract.Method  (Method (..), call, sendTx)
 import           Network.Ethereum.Web3.Provider    (Web3)
 import           Network.Ethereum.Web3.Types       (Call, DefaultBlock (..),
                                                     Filter (..), TxHash)
+import           Network.Ethereum.Contract.HKD     (HKD)
 
 -- | Read contract ABI from file
 abiFrom :: QuasiQuoter
@@ -132,6 +133,13 @@ typeQ t = case parseSolidityType t of
   Left e   -> error $ "Unable to parse solidity type: " ++ show e
   Right ty -> toHSType ty
 
+typeQHKD :: String -> Text -> TypeQ
+typeQHKD f t = case parseSolidityType t of
+  Left e   -> error $ "Unable to parse solidity type: " ++ show e
+  Right ty -> do
+    hsT <- toHSType ty
+    pure $ AppT (AppT (ConT (mkName "HKD")) (VarT (mkName f))) hsT
+
 -- | Function argument to TH type
 funBangType :: FunctionArg -> BangTypeQ
 funBangType (FunctionArg _ typ) =
@@ -176,8 +184,13 @@ funWrapper c name dname args result = do
         Just xs  -> let outs = fmap (typeQ . funArgType) xs
                     in  [t|Web3 $(foldl appT (tupleT (length xs)) outs)|]
 
-mkDecl :: Declaration -> DecsQ
+{-
+dataD' :: Name -> ConQ -> [Name] -> DecQ
+dataD' name rec derive =
+    dataD (cxt []) name [] Nothing [rec] [derivClause Nothing (conT <$> derive)]
+-}
 
+mkDecl :: Declaration -> DecsQ
 mkDecl ev@(DEvent uncheckedName inputs anonymous) = sequence
     [ dataD' indexedName (normalC indexedName (map (toBang <=< tag) indexedArgs)) derivingD
     , instanceD' indexedName (conT ''Generic) []
@@ -187,13 +200,14 @@ mkDecl ev@(DEvent uncheckedName inputs anonymous) = sequence
     , instanceD' nonIndexedName (conT ''Generic) []
     , instanceD' nonIndexedName (conT ''ABIType) [funD' 'isDynamic [] [|const False|]]
     , instanceD' nonIndexedName (conT ''ABIGet) []
-    , dataD' allName (recC allName (map (\(n, a) -> ((\(b,t) -> return (n,b,t)) <=< toBang <=< typeQ $ a)) allArgs)) derivingD
-    , instanceD' allName (conT ''Generic) []
+    , dataD (cxt []) allName [PlainTV (mkName "f")] Nothing
+        [(recC allName (map (\(n, a) -> ((\(b,t) -> return (n,b,t)) <=< toBang <=< typeQHKD "f" $ a)) allArgs))] [derivClause Nothing (conT <$> derivingD)]
+    , instanceD (cxt []) (pure $ ConT ''Generic `AppT` ((AppT (ConT allName) (ConT $ mkName "Solidity")))) []
     , instanceD (cxt [])
-        (pure $ ConT ''IndexedEvent `AppT` ConT indexedName `AppT` ConT nonIndexedName `AppT` ConT allName)
+        (pure $ ConT ''IndexedEvent `AppT` ConT indexedName `AppT` ConT nonIndexedName `AppT` (AppT (ConT allName) (ConT $ mkName "Solidity")))
         [funD' 'isAnonymous [] [|const anonymous|]]
     , instanceD (cxt [])
-        (pure $ ConT ''Default `AppT` (ConT ''Filter `AppT` ConT allName))
+        (pure $ ConT ''Default `AppT` (ConT ''Filter `AppT` (AppT (ConT allName) (ConT $ mkName "Solidity"))))
         [funD' 'def [] [|Filter Nothing (Just topics) Latest Latest|] ]
     ]
   where
@@ -208,7 +222,7 @@ mkDecl ev@(DEvent uncheckedName inputs anonymous) = sequence
     nonIndexedName = mkName $ toUpperFirst (T.unpack name) <> "NonIndexed"
     allArgs = makeArgs name $ map (\i -> (eveArgName i, eveArgType i)) inputs
     allName = mkName $ toUpperFirst (T.unpack name)
-    derivingD = [''Show, ''Eq, ''Ord, ''GHC.Generic]
+    derivingD = [''GHC.Generic]
 
 -- TODO change this type name also
 -- | Method delcarations maker

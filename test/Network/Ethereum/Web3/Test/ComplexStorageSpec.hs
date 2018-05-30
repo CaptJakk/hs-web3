@@ -6,6 +6,8 @@
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE QuasiQuotes           #-}
 {-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+
 
 -- |
 -- Module      :  Network.Ethereum.Web3.Test.ComplexStorage
@@ -34,6 +36,7 @@ import           Data.Either                      (isRight)
 import           Data.Maybe
 import           Data.String                      (fromString)
 import           Network.Ethereum.Contract.TH
+import           Network.Ethereum.Contract.HKD    (Solidity, HKD)
 import           Network.Ethereum.Web3            hiding (convert)
 import qualified Network.Ethereum.Web3.Eth        as Eth
 import           Network.Ethereum.Web3.Test.Utils
@@ -68,7 +71,7 @@ complexStorageSpec = do
         it "can set the values of a ComplexStorage and validate them with an event" $ \primaryAccount -> do
             contractAddress <- Prelude.fmap fromString . liftIO $ getEnv "COMPLEXSTORAGE_CONTRACT_ADDRESS"
             let theCall = callFromTo primaryAccount contractAddress
-                fltr    = (def :: Filter ValsSet) { filterAddress = Just contractAddress }
+                fltr    = (def :: Filter (ValsSet Solidity)) { filterAddress = Just contractAddress }
             -- kick off listening for the ValsSet event
             vals <- newEmptyMVar
             fiber <- runWeb3Configured' $
@@ -88,7 +91,7 @@ complexStorageSpec = do
                                                  sByte2s
             -- wait for its ValsSet event
             wait fiber
-            (ValsSet vsA vsB vsC vsD vsE vsF vsG vsH vsI) <- takeMVar vals
+            (ValsSet vsA vsB vsC vsD vsE vsF vsG vsH vsI :: ValsSet Solidity) <- takeMVar vals
             vsA `shouldBe` sUint
             vsB `shouldBe` sInt
             vsC `shouldBe` sBool

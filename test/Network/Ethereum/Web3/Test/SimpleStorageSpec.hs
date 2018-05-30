@@ -8,6 +8,9 @@
 {-# LANGUAGE QuasiQuotes           #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE KindSignatures        #-}
+{-# LANGUAGE PolyKinds             #-}
 
 -- Module      :  Network.Ethereum.Web3.Test.SimpleStorage
 -- Copyright   :  Alexander Krupenkin 2016
@@ -54,10 +57,11 @@ import           System.IO.Unsafe                 (unsafePerformIO)
 import           Test.Hspec
 
 import           Network.Ethereum.Web3.Test.Utils
+import           Network.Ethereum.Contract.HKD (Solidity)
 
 [abiFrom|test-support/build/contracts/abis/SimpleStorage.json|]
 
-unEvT_CountSet :: EvT_CountSet -> UIntN 256
+unEvT_CountSet :: EvT_CountSet Solidity-> UIntN 256
 unEvT_CountSet (EvT_CountSet n) = n
 
 
@@ -96,7 +100,7 @@ events = describe "can interact with a SimpleStorage contract across block inter
             theSets = [1, 2, 3]
         print "Setting up the filter..."
         fiber <- runWeb3Configured' $ do
-          let fltr = (def :: Filter EvT_CountSet) { filterAddress = Just contractAddress }
+          let fltr = (def :: Filter (EvT_CountSet Solidity)) { filterAddress = Just contractAddress }
           forkWeb3 $ processUntil' var fltr ((3 ==) . length)
         print "Setting the values..."
         setValues theCall theSets
@@ -113,7 +117,7 @@ events = describe "can interact with a SimpleStorage contract across block inter
         start <- runWeb3Configured Eth.blockNumber
         let later = BlockWithNumber (start + 3)
             latest = BlockWithNumber (start + 8)
-            fltr = (def :: Filter EvT_CountSet) { filterAddress = Just contractAddress
+            fltr = (def :: Filter (EvT_CountSet Solidity)) { filterAddress = Just contractAddress
                                             , filterFromBlock = later
                                             , filterToBlock = latest }
         print "Setting up the filter..."
@@ -135,7 +139,7 @@ events = describe "can interact with a SimpleStorage contract across block inter
             theSets1 = [7, 8, 9]
             theSets2 = [10, 11, 12]
         start <- runWeb3Configured Eth.blockNumber
-        let fltr = (def :: Filter EvT_CountSet) { filterAddress = Just contractAddress }
+        let fltr = (def :: Filter (EvT_CountSet Solidity)) { filterAddress = Just contractAddress }
         fiber <- runWeb3Configured' $ do
           forkWeb3 $ processUntil var fltr ((3 ==) . length) (liftIO . putMVar blockNumberVar . changeBlockNumber)
         print "Running first transactions as past transactions..."
@@ -146,7 +150,7 @@ events = describe "can interact with a SimpleStorage contract across block inter
         awaitBlock $ end + 1 -- make past transactions definitively in past
         var' <- newMVar []
         fiber <- runWeb3Configured' $ do
-          let fltr = (def :: Filter EvT_CountSet) { filterAddress = Just contractAddress
+          let fltr = (def :: Filter (EvT_CountSet Solidity)) { filterAddress = Just contractAddress
                                               , filterFromBlock = BlockWithNumber start}
           forkWeb3 $ processUntil' var' fltr ((6 ==) . length)
         print "Setting more values"
@@ -163,7 +167,7 @@ events = describe "can interact with a SimpleStorage contract across block inter
             theSets = [4, 5, 6]
         start <- runWeb3Configured Eth.blockNumber
         blockNumberVar <- newEmptyMVar
-        let fltr = (def :: Filter EvT_CountSet) { filterAddress = Just contractAddress }
+        let fltr = (def :: Filter (EvT_CountSet Solidity)) { filterAddress = Just contractAddress }
         print "Setting up filter for past transactions..."
         fiber <- runWeb3Configured' $ do
           forkWeb3 $ processUntil var fltr ((3 ==) . length) (liftIO . putMVar blockNumberVar . changeBlockNumber)
@@ -181,13 +185,13 @@ events = describe "can interact with a SimpleStorage contract across block inter
         vals <- takeMVar var'
         sort (unEvT_CountSet <$> vals) `shouldBe` sort theSets
 
-processUntil :: MVar [EvT_CountSet]
-             -> Filter EvT_CountSet
-             -> ([EvT_CountSet] -> Bool)  -- TODO: make it work for any event
+processUntil :: MVar [EvT_CountSet Solidity]
+             -> Filter (EvT_CountSet Solidity)
+             -> ([EvT_CountSet Solidity] -> Bool)  -- TODO: make it work for any event
              -> (Change -> Web3 ())
              -> Web3 ()
 processUntil var filter predicate action = do
-  event' filter $ \(ev :: EvT_CountSet) -> do
+  event' filter $ \(ev :: EvT_CountSet Solidity) -> do
     newV <- liftIO $ modifyMVar var $ \v -> return (ev:v, ev:v)
     if predicate newV
         then do
@@ -196,9 +200,9 @@ processUntil var filter predicate action = do
           return TerminateEvent
         else return ContinueEvent
 
-processUntil' :: MVar [EvT_CountSet]
-              -> Filter EvT_CountSet
-              -> ([EvT_CountSet] -> Bool)
+processUntil' :: MVar [EvT_CountSet Solidity]
+              -> Filter (EvT_CountSet Solidity)
+              -> ([EvT_CountSet Solidity] -> Bool)
               -> Web3 ()
 processUntil' var filter predicate = processUntil var filter predicate (const $ return ())
 
